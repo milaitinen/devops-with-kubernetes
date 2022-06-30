@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logoutput-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logoutput
+  template:
+    metadata:
+      labels:
+        app: logoutput
+    spec:
+      volumes:
+        - name: shared-file
+          emptyDir: {}
+      containers:
+        - name: hash-writer
+          image: milai0/logoutput-writer:1.0
+          volumeMounts:
+          - name: shared-file
+            mountPath: /usr/src/app/files
+        - name: hash-reader
+          image: milai0/logoutput-reader:5.0
+          volumeMounts:
+          - name: shared-file
+            mountPath: /usr/src/app/files
