@@ -1,0 +1,29 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todoapp-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: todoapp-frontend-svc
+            port:
+              number: 2345
+      - path: /todos
+        pathType: Prefix
+        backend:
+          service:
+            name: todoapp-backend-svc
+            port:
+              number: 2346
+      - path: /files/image.jpg
+        pathType: Prefix
+        backend:
+          service:
+            name: todoapp-backend-svc
+            port:
+              number: 2346
