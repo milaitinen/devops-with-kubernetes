@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-job
+  namespace: todo-project
+spec:
+  schedule: "0 0 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: todo-job
+            image: milai0/todoapp-backend:16.6
+            env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: db-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: db-password
+            - name: POSTGRES_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: db-cm
+                  key: db-host
+            - name: POSTGRES_DBNAME
+              valueFrom:
+                configMapKeyRef:
+                  name: db-cm
+                  key: db-dbname
+            command:
+            - /bin/sh
+            - -c
+            - node daily.js
+          restartPolicy: OnFailure
