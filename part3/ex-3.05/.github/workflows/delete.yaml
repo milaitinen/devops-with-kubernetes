@@ -1,0 +1,27 @@
+name: todo project
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: europe-north1-b
+
+on:
+  delete:
+
+jobs:
+  build-publish-deploy:
+    name: Delete environment
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: ${{ secrets.GKE_PROJECT }}
+          service_account_key: ${{ secrets.GKE_SA_KEY }}
+          export_default_credentials: true
+      - name: Delete environment
+        run: |-
+          BRANCH=$(cat ${{ github.event_path }} | jq --raw-output '.ref')
+          gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+          kubectl delete namespace $BRANCH
