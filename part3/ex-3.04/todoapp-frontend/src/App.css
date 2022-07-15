@@ -1,0 +1,19 @@
+.App {
+  margin: 3rem;
+}
+
+#new-todo-input {
+  padding: 0.5rem;
+  margin-right: 0.5rem;
+  font-size: 1.2rem;
+}
+
+#create-todo-btn {
+  padding: 0.5rem;
+  font-size: 1.2rem;
+}
+
+#todo-list {
+  font-size: 1.2rem;
+  padding: 0.5rem;
+}
