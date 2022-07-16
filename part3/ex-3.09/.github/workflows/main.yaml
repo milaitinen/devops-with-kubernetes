@@ -1,0 +1,58 @@
+name: todo project
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: europe-north1-b
+  LOGOUTPUT_IMAGE: logoutput-app
+  PINGPONG_IMAGE: pingpong-app
+
+on:
+  push:
+
+jobs:
+  build-and-push:
+    name: Build and push application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: ${{ secrets.GKE_PROJECT }}
+          service_account_key: ${{ secrets.GKE_SA_KEY }}
+          export_default_credentials: true
+       # Configure Docker to use the gcloud command-line tool as a credential
+      # helper for authentication
+      - run: |-
+          gcloud --quiet auth configure-docker
+      # Get the GKE credentials so we can deploy to the cluster
+      - run: |-
+          gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+      # Build and publish docker images
+      - name: Build and Publish Logoutput app
+        run: |-
+          docker build -t "gcr.io/$PROJECT_ID/$LOGOUTPUT_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA" ./logoutput
+          docker push "gcr.io/$PROJECT_ID/$LOGOUTPUT_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA"
+      - name: Build and Publish Pingpong app
+        run: |-
+          docker build -t "gcr.io/$PROJECT_ID/$PINGPONG_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA" ./pingpong-app
+          docker push "gcr.io/$PROJECT_ID/$PINGPONG_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA"
+      # Set up kustomize
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v1
+      # Deploy Docker images to the GKE cluster
+      - name: Deploy
+        run: |
+          kubectl create namespace ${GITHUB_REF#refs/heads/} || true
+          kubectl config set-context --current --namespace=${GITHUB_REF#refs/heads/}
+          kubectl create secret generic db-secret -n=${GITHUB_REF#refs/heads/} --from-literal=db-user=${{ secrets.DB_USER }} --from-literal=db-password=${{ secrets.DB_PASSWORD }} || true
+          kustomize edit set namespace ${GITHUB_REF#refs/heads/} || true
+          kustomize edit set image PINGPONG_IMAGE=gcr.io/$PROJECT_ID/$PINGPONG_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA
+          kustomize edit set image LOGOUTPUT_IMAGE=gcr.io/$PROJECT_ID/$LOGOUTPUT_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA
+          kustomize build . | kubectl apply -f -
+          kubectl rollout status deployment -n ${GITHUB_REF#refs/heads/} logoutput-dep
+          kubectl rollout status deployment -n ${GITHUB_REF#refs/heads/} pingpong-dep
+          kubectl get services -n ${GITHUB_REF#refs/heads/} -o wide

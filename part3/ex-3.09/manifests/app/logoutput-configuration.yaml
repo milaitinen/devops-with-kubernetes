@@ -1,0 +1,55 @@
+# CONFIGMAP
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logoutput-cm
+  namespace: applications
+data:
+  MESSAGE: Hello
+---
+# SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: logoutput-svc
+  namespace: applications
+spec:
+  type: NodePort
+  selector:
+    app: logoutput
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 3000
+---
+# DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logoutput-dep
+  namespace: applications
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logoutput
+  template:
+    metadata:
+      labels:
+        app: logoutput
+    spec:
+      containers:
+        - name: logoutput
+          image: LOGOUTPUT_IMAGE
+          resources:
+            limits:
+              memory: "100Mi"
+              cpu: "200m"
+          env:
+          - name: MESSAGE
+            valueFrom:
+              configMapKeyRef:
+                key: MESSAGE
+                name: logoutput-cm
+          - name: SERVER_URL
+            value: http://pingpong-svc:2346/pingpong
