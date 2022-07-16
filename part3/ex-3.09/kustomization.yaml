@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+  - name: LOGOUTPUT_IMAGE
+    newName: milai0/logoutput:6.1
+  - name: PINGPONG_IMAGE
+    newName: milai0/pingpong-app:11.0
+resources:
+  - manifests/db/configuration.yaml
+  - manifests/app/logoutput-configuration.yaml
+  - manifests/app/pingpong-configuration.yaml
+  - manifests/app/ingress.yaml
