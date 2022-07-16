@@ -1,0 +1,58 @@
+name: todo project
+
+env:
+  PROJECT_ID: ${{ secrets.GKE_PROJECT }}
+  GKE_CLUSTER: dwk-cluster
+  GKE_ZONE: europe-north1-b
+  FRONTEND_IMAGE: todoapp-frontend
+  BACKEND_IMAGE: todoapp-backend
+
+on:
+  push:
+
+jobs:
+  build-and-push:
+    name: Build and push application
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
+        with:
+          project_id: ${{ secrets.GKE_PROJECT }}
+          service_account_key: ${{ secrets.GKE_SA_KEY }}
+          export_default_credentials: true
+       # Configure Docker to use the gcloud command-line tool as a credential
+      # helper for authentication
+      - run: |-
+          gcloud --quiet auth configure-docker
+      # Get the GKE credentials so we can deploy to the cluster
+      - run: |-
+          gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+      # Build and publish docker images
+      - name: Build and Publish Frontend
+        run: |-
+          docker build -t "gcr.io/$PROJECT_ID/$FRONTEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA" ./todoapp-frontend
+          docker push "gcr.io/$PROJECT_ID/$FRONTEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA"
+      - name: Build and Publish Backend
+        run: |-
+          docker build -t "gcr.io/$PROJECT_ID/$BACKEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA" ./todoapp-backend
+          docker push "gcr.io/$PROJECT_ID/$BACKEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA"
+      # Set up kustomize
+      - name: Set up Kustomize
+        uses: imranismail/setup-kustomize@v1
+      # Deploy Docker images to the GKE cluster
+      - name: Deploy
+        run: |
+          kubectl create namespace todoapp-${GITHUB_REF#refs/heads/} || true
+          kubectl config set-context --current --namespace=todoapp-${GITHUB_REF#refs/heads/}
+          kubectl create secret generic db-secret -n=todoapp-${GITHUB_REF#refs/heads/} --from-literal=db-user=${{ secrets.DB_USER }} --from-literal=db-password=${{ secrets.DB_PASSWORD }} || true
+          kustomize edit set namespace todoapp-${GITHUB_REF#refs/heads/} || true
+          kustomize edit set image FRONTEND_IMAGE=gcr.io/$PROJECT_ID/$FRONTEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA
+          kustomize edit set image BACKEND_IMAGE=gcr.io/$PROJECT_ID/$BACKEND_IMAGE:${GITHUB_REF#refs/heads/}-$GITHUB_SHA
+          kustomize build . | kubectl apply -f -
+          kubectl rollout status deployment -n todoapp-${GITHUB_REF#refs/heads/} todoapp-backend-dep
+          kubectl rollout status deployment -n todoapp-${GITHUB_REF#refs/heads/} todoapp-frontend-dep
+          kubectl get services -n todoapp-${GITHUB_REF#refs/heads/} -o wide

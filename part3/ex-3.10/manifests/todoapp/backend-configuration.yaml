@@ -1,0 +1,97 @@
+# SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: todoapp-backend-svc
+  namespace: todo-project
+spec:
+  type: ClusterIP
+  selector:
+    app: todoapp-backend
+  ports:
+    - name: server
+      protocol: TCP
+      port: 80
+      targetPort: 3001
+---
+# DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todoapp-backend-dep
+  namespace: todo-project
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todoapp-backend
+  template:
+    metadata:
+      labels:
+        app: todoapp-backend
+    spec:
+      containers:
+        - name: todoapp-backend
+          image: BACKEND_IMAGE
+          ports:
+          - name: http
+            containerPort: 80
+          resources:
+            limits:
+              memory: "128Mi"
+              cpu: "100m"
+          env:
+          - name: CLIENT_URL
+            value: http://todoapp-frontend-svc
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: db-secret
+                key: db-user
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-secret
+                key: db-password
+          - name: POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: db-cm
+                key: db-host
+          - name: POSTGRES_DBNAME
+            valueFrom:
+              configMapKeyRef:
+                name: db-cm
+                key: db-dbname
+---
+# INGRESS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todoapp-ingress
+  namespace: todo-project
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-frontend-svc
+                port:
+                  number: 80
+          - path: /todos
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-backend-svc
+                port:
+                  number: 80
+          - path: /files/image.jpg
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-backend-svc
+                port:
+                  number: 80
