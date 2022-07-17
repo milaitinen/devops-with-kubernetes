@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logoutput-dep
+  namespace: applications
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logoutput
+  template:
+    metadata:
+      labels:
+        app: logoutput
+    spec:
+      containers:
+        - name: logoutput
+          image: milai0/logoutput:6.1
+          env:
+          - name: MESSAGE
+            valueFrom:
+              configMapKeyRef:
+                key: MESSAGE
+                name: logoutput-cm
+          - name: SERVER_URL
+            value: http://pingpong-svc:2346/pingpong
