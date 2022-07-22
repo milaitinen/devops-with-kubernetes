@@ -1,0 +1,130 @@
+# PERSISTENT VOLUME CLAIM
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-claim
+  namespace: todo-project
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: todoapp-backend-svc
+  namespace: todo-project
+spec:
+  type: ClusterIP
+  selector:
+    app: todoapp-backend
+  ports:
+    - name: server
+      protocol: TCP
+      port: 80
+      targetPort: 3001
+---
+# ROLLOUT
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: todoapp-backend-dep
+  namespace: todo-project
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todoapp-backend
+  strategy:
+    canary:      
+      steps:
+      - setWeight: 25
+      - pause:
+          duration: 30s
+      - setWeight: 50
+      - pause:
+          duration: 30s
+  template:
+    metadata:
+      labels:
+        app: todoapp-backend
+    spec:
+      volumes:
+        - name: shared-image
+          persistentVolumeClaim:
+            claimName: file-claim
+      containers:
+        - name: todoapp-backend
+          image: milai0/todoapp-backend:18.0
+          volumeMounts:
+            - mountPath: /usr/src/app/files
+              name: shared-image
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            httpGet:
+              path: /health
+              port: 3001
+          resources:
+            limits:
+              memory: "150Mi"
+              cpu: "250m"
+          env:
+          - name: CLIENT_URL
+            value: http://todoapp-frontend-svc
+          - name: POSTGRES_USER
+            valueFrom:
+              secretKeyRef:
+                name: db-secret
+                key: db-user
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: db-secret
+                key: db-password
+          - name: POSTGRES_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: db-cm
+                key: db-host
+          - name: POSTGRES_DBNAME
+            valueFrom:
+              configMapKeyRef:
+                name: db-cm
+                key: db-dbname
+---
+# INGRESS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todoapp-ingress
+  namespace: todo-project
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-frontend-svc
+                port:
+                  number: 80
+          - path: /todos
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-backend-svc
+                port:
+                  number: 80
+          - path: /files/image.jpg
+            pathType: Prefix
+            backend:
+              service:
+                name: todoapp-backend-svc
+                port:
+                  number: 80
