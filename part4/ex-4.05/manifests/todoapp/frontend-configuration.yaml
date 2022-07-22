@@ -1,0 +1,48 @@
+# SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: todoapp-frontend-svc
+  namespace: todo-project
+spec:
+  type: NodePort
+  selector:
+    app: todoapp-frontend
+  ports:
+    - name: frontend
+      port: 80
+      protocol: TCP
+      targetPort: 3002
+---
+# ROLLOUT
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: todoapp-frontend-dep
+  namespace: todo-project
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: todoapp-frontend
+  strategy:
+    canary:      
+      steps:
+      - setWeight: 25
+      - pause:
+          duration: 30s
+      - setWeight: 50
+      - pause:
+          duration: 30s
+  template:
+    metadata:
+      labels:
+        app: todoapp-frontend
+    spec:
+      containers:
+        - name: todoapp-frontend
+          image: milai0/todoapp-frontend:12.5
+          resources:
+            limits:
+              memory: "700Mi"
+              cpu: "400m"
